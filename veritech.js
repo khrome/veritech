@@ -84,7 +84,10 @@ function launch(){
             if(type == '404') response.writeHead(404);
             fs.exists(type+'.html', function(errorPageExists){
                 var hardCodedError = function(){
-                    response.end('<html><head><title>Error!</title></head><body><h1>'+type+'</h1><h2>'+message+'</h2></body></html>');
+                    response.end(
+                        '<html><head><title>Error!</title></head><body><h1>'+
+                        type+'</h1><h2>'+message+'</h2></body></html>'
+                    );
                 }
                 if(errorPageExists){
                     fs.readFile(process.cwd()+'/'+type+'.html', function (err, data) {
@@ -132,7 +135,7 @@ function launch(){
                                     console.log('exists');
                                     fs.readFile(process.cwd()+path, function (err, data) {
                                         console.log('found', err);
-                                        if (err) return error('404', 'The requested resource does not exist.', response);
+                                        if(err) return error('404', 'The requested resource does not exist.', response);
                                         response.setHeader("Content-Type", mime.lookup(path));
                                         response.end(data);
                                     });
