@@ -1,0 +1,35 @@
+{
+    "name": "veritech",
+    "homepage": "https://github.com/khrome/veritech",
+    "version": "0.0.1-alpha",
+    "main": "veritech.js",
+    "description": "A lightweight MVC using director + handlebars with optional resource delivery",
+    "keywords": [
+        "MVC"
+    ],
+    "author": "Abbey Hawk Sparrow <@khrome> (http://patternweaver.com)",
+    "contributors": [],
+    "bugs": {
+        "url": "https://github.com/khrome/veritech/issues"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git@github.com:khrome/veritech.git"
+    },
+    "dependencies": {
+        "handlebars" : "*",
+        "director" : "*",
+        "commander" : "*",
+        "ascii-art" : "*",
+        "url" : "*",
+        "mime" :"*"
+    },
+    "devDependencies": {
+    },
+    "optionalDependencies": {
+    },
+    "engines": {
+        "node": "*"
+    }
+}
