@@ -1,7 +1,7 @@
 {
     "name": "veritech",
     "homepage": "https://github.com/khrome/veritech",
-    "version": "0.0.1-alpha",
+    "version": "0.0.2-beta",
     "main": "veritech.js",
     "description": "A lightweight MVC using director + handlebars with optional resource delivery",
     "keywords": [

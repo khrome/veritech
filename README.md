@@ -1,6 +1,6 @@
 veritech.js
 ==============
-Super simple MVC using director and handlebars, less than 200 lines.
+Super simple MVC using director and handlebars, less than 400 lines. Serves frontend JS from NPM.
 
 Usage
 -----
@@ -35,8 +35,21 @@ From the interactive output:
     
 just pass these in as you execute your script and they'll get picked up
 
-Controllers
------------
+In the Browser
+--------------
+Veritech drops an index and autoscans the root node_modules directory and enables them for load using [requirejs-manifest-builder](https://www.npmjs.org/package/requirejs-manifest-builder). This allows you to build [UMD](https://github.com/umdjs/umd/blob/master/returnExports.js) modules that run in both Node(even if only for testing) and the browser without an onerous build process.
+
+`client.js` will then be shipped to the client and an application init and you use [require.js](http://requirejs.org/) to pull in your assets.
+
+Single Page Apps
+----------------
+
+You're already using director, so go ahead and load it in the browser and go to town. Load your favorite MVC, whatever. How easy is that, right?
+
+I like to use [live-templates](https://www.npmjs.org/package/live-templates) in combination with [array-events](https://www.npmjs.org/package/array-events) and [object-events](https://www.npmjs.org/package/object-events) but you may want to use something like [Backbone](http://backbonejs.org/) or some other library (which if you use and I haven't listed it here, you will dutifully report back the results).
+
+Multipage Apps
+--------------
 Controllers are just arbitrary bits of js which handle rendering for a page, sitting in the Controllers directory.
 
 you have a bunch of utility functions exposed:
@@ -53,11 +66,10 @@ writes text to the buffer
     
 and it passes through request, response and arguments.
 
-Templates
----------
-These are pure [handlebars templates](http://handlebarsjs.com/) with the naming convention of [name].handlebars.tpl and sitting in the Templates directory.
+Templates are pure [handlebars templates](http://handlebarsjs.com/) with the naming convention of [name].handlebars.tpl and sitting in the Templates directory.
 
 If you had a template 'product/details' it would exist at 'Templates/product/details.handlebars.tpl'
+
 
 Testing
 -----
