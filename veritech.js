@@ -242,13 +242,16 @@ function launch(routes){
                             case 'ico':
                             case 'otf':
                             case 'svg':
+                            case 'handlebars': 
                                 fs.exists(process.cwd()+path, function(exists){
                                     fs.readFile(process.cwd()+path, function (err, buffer){
-                                        module.exports.error(err.message);
-                                        if(err) return error('404', 'The requested resource does not exist.', response);
+                                        if(err){
+                                            module.exports.error(err.message);
+                                            return error('404', 'The requested resource does not exist.', response);
+                                        }
                                         var type = mime.lookup(path);
                                         response.setHeader("Content-Type", type);
-                                        response.end(buffer);
+                                        response.end(buffer.toString());
                                     });
                                 });
                                 break;
