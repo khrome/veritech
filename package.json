@@ -1,11 +1,12 @@
 {
     "name": "veritech",
     "homepage": "https://github.com/khrome/veritech",
-    "version": "0.0.3-beta",
+    "version": "0.1.0",
     "main": "veritech.js",
-    "description": "A lightweight MVC using director + handlebars with optional resource delivery",
+    "description": "A minimal MVC with routing, templating and resource delivery",
     "keywords": [
-        "MVC"
+        "MVC",
+        "UMD"
     ],
     "author": "Abbey Hawk Sparrow <@khrome> (http://patternweaver.com)",
     "contributors": [],

@@ -7,11 +7,11 @@ var config = require('commander');
 var art = require('ascii-art');
 var arrays = require('async-arrays');
 var fs = require('fs');
-var director = require('director');
+//var director = require('director');
 var vm = require('vm');
 var qs = require('querystring');
 var url = require('url');
-var Handlebars = require('handlebars');
+//var Handlebars = require('handlebars');
 var mime = require('mime');
 var domain = require('domain');
 var Emitter = require('extended-emitter');
@@ -113,7 +113,8 @@ function rootHarness(request, response, filter){
 }
 
 function launch(routes){
-    if(routes) a.router = new director.http.Router(routes);
+    //if(routes) a.router = new director.http.Router(routes);
+    if(routes) a.router = makeRouter(routes);
 
     function log(type, message, level){
         if(config.verbose && (level || 1) <= (config.log_level || 1)) console.log('log', message);
@@ -122,6 +123,7 @@ function launch(routes){
     var router;
     var templates = {};
     var controllers = {};
+    var Handlebars;
 
     function render(templateName, data, callback){
         if(templates[templateName]){
@@ -130,6 +132,7 @@ function launch(routes){
             fs.readFile(process.cwd()+'/'+module.exports.templateDirectory+'/'+templateName+'.handlebars.tpl', function(error, file){
                 if(error) console.log(error);
                 else{
+                    if(!Handlebars) Handlebars = require('handlebars');
                     templates[templateName] = Handlebars.compile(''+file);
                     render(templateName, data, callback);
                 }
@@ -222,7 +225,7 @@ function launch(routes){
                     if(caselessPath == '/' || caselessPath == 'index'|| caselessPath == 'index.html'|| caselessPath == 'index.sky'){
                         return rootHarness(request, response);
                     }
-                    a.router.dispatch(request, response, function (err){
+                    a.router.route(request, response, function (err){
                         var uri = url.parse(request.url, true);
                         var path = ((type == '!' && uri.pathname != '/')?uri.pathname+'.html':uri.pathname);
                         var type = path.lastIndexOf('.') != -1 ? path.substring(path.lastIndexOf('.')+1) : '!';
@@ -306,6 +309,50 @@ function launch(routes){
 }
 var serverDomain = domain.create(); //create a domain context for the server
 
+var makeRouter = function(routes){
+    throw new Error('no router selected');
+}
+
+var makeDirectorRouter = function(routes){
+    var director = require('director');
+    var router = new director.http.Router(routes);
+    var shim = {};
+    shim.route = function(req, res, fallthruFn){
+        return router.dispatch.apply(router, arguments);
+    }
+    shim.add = function(method, route, handler){
+        if(method == '*') method = ['get', 'post', 'put', 'delete'];
+        if(Array.isArray(method)){
+            method.forEach(function(method){
+                shim.add(method, route, handler);
+            });
+        }else{
+            router[method](route, handler);
+        }
+    }
+    return shim;
+}
+
+var makeProtolusRouter = function(routes){
+    throw new Error('Protolus routing not yet supported')
+    /*var ProtolusRouter = require('protolus-router');
+    var router = new ProtolusRouter(routes);
+    var shim = {};
+    shim.route = function(req, res, fallthruFn){
+        
+        return router.dispatch.apply(router, arguments);
+    }
+    shim.add = function(method, route, handler){
+        if(method == '*'){
+            router.addRoute(route, handler);
+        }else{
+            var context = (Array.isArray(method)?method:[method])
+            router.addRoute(route, context, handler);
+        }
+    }
+    return shim;*/
+}
+
 module.exports = {
     launch : function(routes, socketHandler){
         if(socketHandler) a.socketHandler = socketHandler;
@@ -359,6 +406,21 @@ module.exports = {
     },
     error : function(message, type){
         throw new ApplicationError(message, type);
+    },
+    router : function(handler){
+        if(typeof handler == 'string'){
+            switch(handler.toLowerCase()){
+                case 'director':
+                    makeRouter = makeDirectorRouter;
+                    break;
+                default : throw new Error('unknown routing type: '+handler);
+            }
+        }else{
+            if(typeof handler == 'function'){
+                makeRouter = handler;
+            }else throw new Error('unknown routing handler type: '+(typeof handler));
+        }
+        
     },
     on : function(){ return emitter.on.apply(emitter, arguments); },
     once : function(){ return emitter.once.apply(emitter, arguments); },
