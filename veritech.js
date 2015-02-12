@@ -4,7 +4,7 @@ var ManifestBuilder = require('requirejs-manifest-builder');
 var builder = new ManifestBuilder();
 //ultra minimal node MVC
 var config = require('commander');
-var art = require('ascii-art');
+//var art = require('ascii-art');
 var arrays = require('async-arrays');
 var fs = require('fs');
 //var director = require('director');
@@ -37,6 +37,7 @@ config.parse(process.argv);
 config.name = pkg.name;
 
 var options = {};
+var lastError;
 
 function ApplicationError(msg, type){
   Error.call(this);
@@ -44,6 +45,7 @@ function ApplicationError(msg, type){
   this.message = msg;
   this.code = type || 500;
   this.name = 'ApplicationError';
+  lastError = this;
 };
 ApplicationError.prototype.__proto__ = Error.prototype;
 
@@ -60,6 +62,11 @@ function getRequireConfig(callback){
         var manifestOptions = {};
         // constructor postprocess (pick up extensions and autogen process functions)
         if(options.extensions) manifestOptions['process'] = true;
+        if(options.autodeps){
+            manifestOptions['dependencies'] = pkg.dependencies?Object.keys(pkg.dependencies):[];
+            if(pkg.subdependencies) manifestOptions['dependencies'] = manifestOptions['dependencies'].concat(pkg.subdependencies);
+        }
+        if(options.modulesPath) builder.modulesPath(options.modulesPath);
         builder.buildManifest(manifestOptions, function(err, manifest, modules){
             callback(err, manifest, modules);
         });
@@ -67,8 +74,11 @@ function getRequireConfig(callback){
 }
 
 var errorFunction = function(options, request, response){
+    //console.log(lastError);
+    //console.log('**********');
     fs.exists(options.code+'.html', function(errorPageExists){
         var hardCodedError = function(){
+            console.log(options+'');
             response.end(
                 '<html><head><title>'+options.code+' Error!</title></head><body><h1>'+
                 options.code+'</h1><h2>'+options.message+'</h2></body></html>'
@@ -85,28 +95,83 @@ var errorFunction = function(options, request, response){
 
 var a = {}; // just an anchor for shared referencing
 
+var cache = {};
+function requirePlus(cb){
+    if(cache && cache.requirePlus) cb(undefined, cache.requirePlus);
+    fs.readFile(__dirname+'/node_modules/requirejs-manifest-builder/requireplus.js', function(rplusErr, requireMod){
+        if(cache) cache.requirePlus = requireMod;
+        cb(undefined, cache.requirePlus);
+    });
+}
+
+function requireInitScript(cb){
+    if(cache && cache.init) cb(undefined, cache.init);
+    fs.readFile(process.cwd()+'/client.js', function(rplusErr, requireMod){
+        if(requireMod.toString) requireMod = requireMod.toString()
+        if(cache) cache.init = requireMod;
+        cb(undefined, cache.init);
+    });
+}
+
+function buildPage(opts, buffer){
+    var html = buffer.toString();
+    html = html.replace('<!--[SOCKET]-->', opts.socket || '');
+    html = html.replace('<!--[LOADER]-->', opts.loader || '');
+    html = html.replace('<!--[EXTENSION]-->', opts.extension || '');
+    html = html.replace('<!--[POLYMER]-->', opts.polymer || '');
+    html = html.replace('<!--[INIT]-->', opts.initialize || '');
+    html = html.replace('<!--[INITIALIZE]-->', opts.initialize || '');
+    return html;
+}
+
 function rootHarness(request, response, filter){
-    getRequireConfig(function(err, config){
+    getRequireConfig(function(err, config, output){
         if(typeof config != 'string') config = JSON.stringify(config, null, '\t');
-        fs.readFile(process.cwd()+'/client.js', function (err, init) {
-            fs.readFile(__dirname+'/node_modules/requirejs-manifest-builder/requireplus.js', function(rplusErr, requireMod){
-                var body = 
-                    '<html lang="'+module.exports.language+'-'+module.exports.region+'"><head>\n'+
-                    '<meta charset="utf-8">\n'+
-                    (a.socketHandler?'<script src="/socket.io/socket.io.js"></script>\n':'')+
-                    '<script src="/require.js"></script>\n<script>\n'+
+        requireInitScript(function (err, init){
+            requirePlus(function(rplusErr, requireMod){
+                if(err || rplusErr){
+                    response.writeHead(404);
+                    return response.end((err || rplusErr).message);
+                }
+                var opts = {};
+                opts.socket = (a.socketHandler?'<script src="/socket.io/socket.io.js"></script>\n':'');
+                opts.loader = '<script src="/require.js"></script>\n<script>\n'+
                         'require.config('+config+');'+
-                    '</script>'+(options.extensions?('<script>\n'+
+                    '</script>';
+                opts.extension = (options.extensions?('<script>\n'+
                         requireMod+
-                    '\n</script>'):'')+
-                    '<script>\n'+
+                    '\n</script>'):'');
+                opts.initialize = '<script>\n'+
                         (init || '').toString()+
-                    '\n</script></head><body>\n'+
-                        '<!--THE BODY HAS NOT BEEN REPLACED!-->'+
-                    '\n</body></html>'
-                ;
-                if(filter) body = filter(body);
-                response.end(body);
+                    '\n</script>';
+                opts.polymer = output.polymer?'<script src="/polymer/platform.js"></script><link rel="import" href="/polymer/polymer.html" />':'';
+                if(options.index){
+                    fs.readFile(process.cwd()+'/'+options.index, function(err, body){
+                        if(err){
+                            response.writeHead(404);
+                            return response.end(err.message, options);
+                        }
+                        var page = buildPage(opts, body);
+                        if(filter) page = filter(page);
+                        response.end(page);
+                    });
+                }else{
+                    var page = 
+                        '<html lang="US-en"><head>\n'+
+                        '<meta charset="utf-8">\n'+
+                        '<!--[SOCKET]-->'+
+                        '<!--[LOADER]-->'+
+                        '<!--[EXTENSION]-->'+
+                        '<!--[POLYMER]-->'+
+                        '<!--[INIT]-->'+
+                        '</head><body>\n'+
+                            '<!--THE BODY HAS NOT BEEN REPLACED!-->'+
+                        '\n</body></html>'
+                    ;
+                    page = buildPage(opts, page);
+                    if(filter) page = filter(page);
+                    response.end(page);
+                }
             });
         });
     });
@@ -171,11 +236,11 @@ function launch(routes){
     a.controller = controller;
     
     var serve = function(){
-        var error = function(type, message, request, response){
+        var error = function(type, message, request, response, error){
             var options = {};
             var stack = (new Error()).stack.split("\n");
             stack.shift();
-            options.stack = stack;
+            options.stack = (error.stack?error.stack.split("\n").concat(stack):stack).join("\n");
             if(typeof type === 'number') options.code = type;
             else{
                 if(type && [
@@ -192,6 +257,11 @@ function launch(routes){
                 else options.code = 404;
             }
             options.message = message;
+            options.toString = function(){
+                return 'Error: '+options.code+"\n"+
+                //options.message+"\n"+ //already on the stack
+                options.stack;
+            }
             errorFunction(options, request, response);
         };
         var handler = function(request, response) {
@@ -200,7 +270,7 @@ function launch(routes){
             requestDomain.add(response);
             requestDomain.on('error', function(err){
                 try{
-                    error(err.code || 500, err.message, request, response);
+                    error(err.code || 500, err.message, request, response, err);
                 }catch(err){
                     console.error('Error generating error '+err.message);
                 }
@@ -245,16 +315,18 @@ function launch(routes){
                             case 'ico':
                             case 'otf':
                             case 'svg':
-                            case 'handlebars': 
-                                fs.exists(process.cwd()+path, function(exists){
-                                    fs.readFile(process.cwd()+path, function (err, buffer){
-                                        if(err){
-                                            module.exports.error(err.message);
-                                            return error('404', 'The requested resource does not exist.', response);
-                                        }
-                                        var type = mime.lookup(path);
-                                        response.setHeader("Content-Type", type);
-                                        response.end(buffer.toString());
+                            case 'handlebars':
+                                builder.realPath(path, function(path){ //handle use of alternative module roots
+                                    fs.exists(path, function(exists){
+                                        fs.readFile(path, function (err, buffer){
+                                            if(err){
+                                                module.exports.error(err.message);
+                                                return error('404', 'The requested resource does not exist.', response);
+                                            }
+                                            var type = mime.lookup(process.cwd()+path);
+                                            response.setHeader("Content-Type", type);
+                                            response.end(buffer);
+                                        });
                                     });
                                 });
                                 break;
@@ -313,6 +385,10 @@ var makeRouter = function(routes){
     throw new Error('no router selected');
 }
 
+process.on('uncaughtException', function(){
+    conole.log('?', arguments);
+});
+
 var makeDirectorRouter = function(routes){
     var director = require('director');
     var router = new director.http.Router(routes);
@@ -353,10 +429,98 @@ var makeProtolusRouter = function(routes){
     return shim;*/
 }
 
+// SUPPORT FOR CLI TOOLS (frameworks/transports)
+
+var supported = {
+    transports : {},
+    frameworks : {}
+};
+
+function subClass(fn, newClass){
+    if(typeof newClass != 'function'){ //handle passed in objects
+        var cons = newClass.constructor || newClass.initialize;
+        if(newClass.constructor){
+            delete newClass.constructor; 
+        }else if(newClass.initialize) delete newClass.initialize;
+        cons.prototype = newClass;
+    }
+    var constructor = newClass;
+    var superClass = fn;
+    var proto = clone(fn.prototype);
+    var cls = function(){
+        superClass.apply(this, arguments);
+        constructor.apply(this, arguments);
+    }
+    Object.keys(newClass.prototype).forEach(function(field){
+        proto[field] = newClass.prototype.field;
+    });
+    cls.prototype = proto;
+    cls.prototype.constructor = constructor;
+    return cls;
+}
+
+function GenericTransport(){
+    this.options = options || {};
+    //todo: handle environment vars
+    if(!this.options.path) this.options.path = 'veritech_modules/';
+}
+GenericFramework.prototype.fetch = function(name, cb){
+    fs.readFile(this.options.path+name, function(err, data){
+        if(err) return cb(err);
+        
+    })
+}
+
+function GenericFramework(){
+    
+}
+GenericFramework.prototype.install = function(name, cb){
+    //default is to fetch a repo from git to this.directory
+    supported.transports.git.fetch(name, cb);
+}
+GenericFramework.prototype.remove = function(name, cb){
+    //default is folder delete this.directory+name
+    fs.exists(this.directory+name, function(exists){
+        if(!exists) cb(new Error('The directory '+this.directory+name+' does not exist!'));
+        else{
+            fs.unlink(this.directory+name, cb);
+        }
+    });
+}
+GenericFramework.prototype.update = function(name, cb){
+    this.remove(function(err){
+        if(err) cb(err);
+        else this.install(cb);
+    });
+}
+GenericFramework.prototype.version = function(){
+    return '0.0-prealpha'
+}
+GenericFramework.prototype.man = function(){
+    return "Encourage the maintainer of this transport to add a readme"
+}
+
+function registerFramework(name, ob){
+    supported.frameworks[name] = subClass(ob, GenericFramework);
+}
+function registerTransport(name, ob){
+    supported.transports[name] = subClass(ob, GenericFramework);
+}
+
 module.exports = {
     launch : function(routes, socketHandler){
         if(socketHandler) a.socketHandler = socketHandler;
         launch(routes);
+    },
+    DefaultFramework : GenericFramework,
+    DefaultTransport : GenericTransport,
+    registerFramework : registerFramework,
+    registerTransport : registerTransport,
+    framework : function(name){
+        return supported.frameworks[name];
+    },
+    transport : function(name){
+        return supported.transports[name];
     },
     templateDirectory : 'Templates',
     controllerDirectory : 'Controllers',

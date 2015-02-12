@@ -62,7 +62,7 @@ Veritech drops an index and autoscans the root node_modules directory and enable
 
 `client.js` will then be shipped to the client and an application init and you use [require.js](http://requirejs.org/) to pull in your assets.
 
-so let's say you need the npms `async` and `zepto-umd`:
+so let's say you need the npms `async` and `zepto-umd` (I made it up):
 
 first, on the server:
 
@@ -71,13 +71,8 @@ first, on the server:
 
 Now, in the client script:
 
-    require(['async', 'zepto-umd', 'director'], function(async, $, Router){
+    require(['async', 'zepto-umd'], function(async, $){
         //init logic goes here
-        new Router({
-            'some/path/with/:arg' : function(arg){
-                //construct this view
-            }
-        });
     });
 
 This is the whole process. Now just keep importing modules you need and adding features... forget learning about libraries of esoteric functions and special variables that pop into scope at seemingly random times. It's not a new language. It's just a web application.
@@ -86,6 +81,25 @@ Single Page Apps
 ----------------
 
 You're already using director, so go ahead and load it in the browser and go to town. Load your favorite MVC, whatever. How easy is that, right?
+
+In fact, let's add routing to our previous example.
+
+	require(['async', 'zepto-umd', 'director'], function(async, $, Router){
+        //init logic goes here
+        new Router({
+            'some/path/with/:arg' : function(arg){
+                //construct this view
+            }
+        });
+        //remember to forward to URLs instead of directly taking an action:
+        //just drop a hash on the URL
+        navigate('some/path/I/want')
+        // or alter the state, compute a hash, then hit the url
+        navigate({somefield: somevalue});
+        // instead of
+        component.open();
+        oldComponent.close();
+    });
 
 I like to use [live-templates](https://www.npmjs.org/package/live-templates) in combination with [array-events](https://www.npmjs.org/package/array-events) and [object-events](https://www.npmjs.org/package/object-events) but you may want to use something like [Backbone](http://backbonejs.org/), [Angular](https://angularjs.org/), [Polymer](https://www.polymer-project.org/) or some other library (which if you use and I haven't listed it here, you will dutifully report back the results).
 
@@ -110,6 +124,10 @@ and it passes through request, response and arguments.
 Templates are pure [handlebars templates](http://handlebarsjs.com/) with the naming convention of [name].handlebars.tpl and sitting in the Templates directory. Handlebars is only required if templates are actually rendered.
 
 If you had a template 'product/details' it would exist at 'Templates/product/details.handlebars.tpl'
+
+Protolus
+--------
+This application wrapper was written to be the backbone of [Protolus](https://protol.us). The rewrite (Protolus 3) is currently in development. If you wish to use Protolus in the meantime, you may use [Protolus 2.x](https://www.npmjs.org/package/protolus)(javascript) or [Protolus 1.x](https://github.com/Protolus/Protolus.php)(PHP). But there will be significant changes to both as I work toward a unified framework that runs on a number of target languages (But is not strictly a front-end framework).
 
 Testing
 -----

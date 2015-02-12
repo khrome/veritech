@@ -1,7 +1,7 @@
 {
     "name": "veritech",
     "homepage": "https://github.com/khrome/veritech",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "main": "veritech.js",
     "description": "A minimal MVC with routing, templating and resource delivery",
     "keywords": [
@@ -9,7 +9,6 @@
         "UMD"
     ],
     "author": "Abbey Hawk Sparrow <@khrome> (http://patternweaver.com)",
-    "contributors": [],
     "bugs": {
         "url": "https://github.com/khrome/veritech/issues"
     },
@@ -24,13 +23,8 @@
         "commander" : "*",
         "ascii-art" : "*",
         "url" : "*",
+        "extended-emitter" : "*",
+        "querystring" : "*",
         "mime" :"*"
-    },
-    "devDependencies": {
-    },
-    "optionalDependencies": {
-    },
-    "engines": {
-        "node": "*"
     }
 }
