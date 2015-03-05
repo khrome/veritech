@@ -4,14 +4,11 @@ var ManifestBuilder = require('requirejs-manifest-builder');
 var builder = new ManifestBuilder();
 //ultra minimal node MVC
 var config = require('commander');
-//var art = require('ascii-art');
 var arrays = require('async-arrays');
 var fs = require('fs');
-//var director = require('director');
 var vm = require('vm');
 var qs = require('querystring');
 var url = require('url');
-//var Handlebars = require('handlebars');
 var mime = require('mime');
 var domain = require('domain');
 var Emitter = require('extended-emitter');
@@ -19,7 +16,7 @@ var pkg = require(process.cwd()+'/package');
 
 config.version(pkg.version);
 config.option('-p, --port [number]', 'The port to listen on', '80', parseInt);
-config.option('-d, --develoment', 'Put the app into development mode');
+config.option('-d, --development', 'Put the app into development mode');
 config.option('-D, --demo', 'Put the app into demo mode(generated data)');
 config.option('-x, --ssl_pfx [pfx]', 'PKCS#12 archive');
 config.option('-P, --ssl_port [number]', 'port for ssl connections');
@@ -33,6 +30,9 @@ config.option('-s, --socket_port', 'Set Websocket Port');
 //config.option('-r, --log_rotation [strategy]', 'The strategy');
 config.option('-l, --log_level', 'The granularity of logging [1-5] where 1 is the most general', '1', parseInt);
 config.option('-v, --verbose', 'Enable verbose output at the the present log level');
+if(pkg.commandlineoptions && Array.isArray()) pkg.commandlineoptions.forEach(function(option){
+	config.option.apply(config, option);
+});
 config.parse(process.argv);
 config.name = pkg.name;
 
@@ -77,7 +77,7 @@ var errorFunction = function(options, request, response){
     //console.log(lastError);
     //console.log('**********');
     fs.exists(options.code+'.html', function(errorPageExists){
-        var hardCodedError = function(){
+        var hardCodedError = function(response){
             console.log(options+'');
             response.end(
                 '<html><head><title>'+options.code+' Error!</title></head><body><h1>'+
@@ -89,7 +89,7 @@ var errorFunction = function(options, request, response){
                 if(err) hardCodedError();
                 else response.end(data);
             });
-        }else hardCodedError();
+        }else hardCodedError(response);
     });
 };
 
@@ -240,7 +240,7 @@ function launch(routes){
             var options = {};
             var stack = (new Error()).stack.split("\n");
             stack.shift();
-            options.stack = (error.stack?error.stack.split("\n").concat(stack):stack).join("\n");
+            options.stack = (error && error.stack?error.stack.split("\n").concat(stack):stack).join("\n");
             if(typeof type === 'number') options.code = type;
             else{
                 if(type && [
@@ -254,10 +254,11 @@ function launch(routes){
                     '500', '501', '502', '503', '504', '505', '506', '507', '508', '509', '510', 
                         '511', '520', '521', '522', '523', '524', '598', '599'
                 ].indexOf(type) !== -1) options.code = parseInt(type);
-                else options.code = 404;
+                else options.code = 500;
             }
             options.message = message;
             options.toString = function(){
+            if(options.code == 404) return 'bad URL:'+request.url;
                 return 'Error: '+options.code+"\n"+
                 //options.message+"\n"+ //already on the stack
                 options.stack;
@@ -285,10 +286,10 @@ function launch(routes){
                 });
                 request.addListener("end", function(){
                     try{
-                        request.post = qs.parse(request.content); //first try normal args
+                        request.post = JSON.parse(request.content); //give JSON a chance
                     }catch(ex){
                         try{
-                            request.post = JSON.stringify(request.content); //if not give JSON a chance
+                            request.post = qs.parse(request.content) //if not try args
                         }catch(ex){}
                     }
                     var caselessPath = request.parsedURL.path.toLowerCase();
@@ -299,7 +300,7 @@ function launch(routes){
                         var uri = url.parse(request.url, true);
                         var path = ((type == '!' && uri.pathname != '/')?uri.pathname+'.html':uri.pathname);
                         var type = path.lastIndexOf('.') != -1 ? path.substring(path.lastIndexOf('.')+1) : '!';
-                        if(!type) return error('404', 'The requested resource does not exist.', request, response);
+                        if(!type) return error(404, 'The requested resource does not exist.', request, response);
                         switch(type.toLowerCase()){
                             case 'png':
                             case 'gif':
@@ -320,8 +321,9 @@ function launch(routes){
                                     fs.exists(path, function(exists){
                                         fs.readFile(path, function (err, buffer){
                                             if(err){
+console.log(err);
                                                 module.exports.error(err.message);
-                                                return error('404', 'The requested resource does not exist.', response);
+                                                return error(404, 'The requested resource does not exist.', response);
                                             }
                                             var type = mime.lookup(process.cwd()+path);
                                             response.setHeader("Content-Type", type);
@@ -330,7 +332,7 @@ function launch(routes){
                                     });
                                 });
                                 break;
-                            default: return error('404', 'The requested resource does not exist.', request, response);
+                            default: return error(404, 'The requested resource does not exist.', request, response);
                         }
                     });
             
@@ -386,7 +388,7 @@ var makeRouter = function(routes){
 }
 
 process.on('uncaughtException', function(){
-    conole.log('?', arguments);
+    console.log('There was an unhandled exception not caught within a Domain, please restart the application', arguments);
 });
 
 var makeDirectorRouter = function(routes){
